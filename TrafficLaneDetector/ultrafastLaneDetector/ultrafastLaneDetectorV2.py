@@ -279,6 +279,7 @@ class UltrafastLaneDetectorV2():
 			else :
 				color = lane_colors[lane_num]
 			for lane_point in lane_points:
+
 				cv2.circle(image, (lane_point[0],lane_point[1]), 3, color, -1)
 
 	def DrawAreaOnFrame(self, image, color=(255,191,0)) :

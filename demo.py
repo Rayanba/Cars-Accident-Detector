@@ -1,7 +1,10 @@
 import cv2, time
 import numpy as np
+import re
 import logging
 import pycuda.driver as drv
+# from dataFrame import *
+import pandas as pd
 from cap_from_youtube import  cap_from_youtube
 
 from taskConditions import TaskConditions, Logger
@@ -15,7 +18,7 @@ from TrafficLaneDetector.ultrafastLaneDetector.perspectiveTransformation import 
 from TrafficLaneDetector.ultrafastLaneDetector.utils import LaneModelType, OffsetType, CurvatureType
 LOGGER = Logger(None, logging.INFO, logging.INFO )
 
-video_path = "TrafficLaneDetector/temp/test.mp4"
+video_path = "TrafficLaneDetector/temp/case2-vid1.mp4"
 lane_config = {
 	"model_path": "./TrafficLaneDetector/models/culane_res34.trt",
 	"model_type" : LaneModelType.UFLDV2_CULANE
@@ -254,6 +257,34 @@ if __name__ == "__main__":
 	# display panel
 	displayPanel = ControlPanel()
 	analyzeMsg = TaskConditions()
+
+
+
+
+	count = 0
+	df = pd.DataFrame(columns=["id", 'offset',
+							   "xmin",
+							   "ymin",
+							   "xmax",
+							   "ymax",
+							   "label",
+							   # "distance",
+							   "car_direction",
+							   "car_curv",
+							   'lane1_detected',
+							   "lane2_detected",
+							   "lane3_detected",
+							   "lane4_detected",
+							   'lane1_points',
+							   "lane2_points",
+							   "lane3_points",
+							   "lane4_points"
+							   ])
+	## add: objectDetctor.object_info[],
+	#, "className"
+
+
+
 	while cap.isOpened():
 
 		ret, frame = cap.read() # Read frame from the video
@@ -296,14 +327,106 @@ if __name__ == "__main__":
 			frame_show = displayPanel.DisplayBirdViewPanel(frame_show, birdview_show)
 			frame_show = displayPanel.DisplaySignsPanel(frame_show, analyzeMsg.offset_msg, analyzeMsg.curvature_msg)	
 			frame_show = displayPanel.DisplayCollisionPanel(frame_show, analyzeMsg.collision_msg, obect_infer_time, lane_infer_time )
+
+
+			classList = [i for i in objectDetector.object_info]
+			# print(classList[0][0])
+			distanceList = [i for i in distanceDetector.distance_points]
+			# print(distanceList[0][2])
+			count += 1
+			counter = -1
+			for i in classList:
+				counter += 1
+				newRow = {'id': count,
+						  "offset": vehicle_offset,
+						  "xmin":i[0][0],
+						  "ymin":i[0][1],
+						  "xmax":i[0][2],
+						  "ymax":i[0][3],
+						  "label":i[0][4],
+						  # "distance": 0,
+						  "car_direction": vehicle_direction,
+						  'car_curv': vehicle_curvature,
+						  'lane1_detected':  laneDetector.lanes_detected[0],
+						  "lane2_detected":laneDetector.lanes_detected[1],
+						  "lane3_detected":laneDetector.lanes_detected[2],
+						  "lane4_detected":laneDetector.lanes_detected[3],
+						  'lane1_points': laneDetector.lanes_points[0],
+						  "lane2_points": laneDetector.lanes_points[1],
+						  "lane3_points": laneDetector.lanes_points[2],
+						  "lane4_points": laneDetector.lanes_points[3]
+						  }
+
+				df.loc[len(df)] = newRow
+				# print(counter)
+				# print(distanceDetector.distance_points[counter][2])
+				# if counter > len(classList)-2:
+				# 	pass
+				#
+				# else:
+				# 	df['distance'].iloc[-1] = distanceDetector.distance_points[counter][2]
+			# print(df['distance'])
+			#
+			# print(df)
 			cv2.imshow("ADAS Simulation", frame_show)
 
 		else:
 			break
-		vout.write(frame_show)	
+
+		vout.write(frame_show)
+
 		if cv2.waitKey(1) == ord('q'): # Press key q to stop
 			break
 
 	vout.release()
 	cap.release()
 	cv2.destroyAllWindows()
+	# lane Three
+	firstPointList = []
+	midPointList = []
+	lastPointList = []
+	for i in df['lane2_points']:
+		foundlist = re.findall(r'\(\d{3},\s\d{3}\)', str(i))
+		if foundlist == []:
+			firstPointList.append(None)
+			midPointList.append(None)
+			lastPointList.append(None)
+		else:
+			firstPointList.append(foundlist[0].strip(r'()'))
+			midPointList.append(foundlist[int(len(foundlist) / 2)].strip(r"()"))
+			lastPointList.append(foundlist[-1].strip(r"()"))
+	#     print(foundpat.group().strip(r'()'))
+	df['lane_Two_firstPoint'] = firstPointList
+	df['lane_Two_midPoint'] = midPointList
+	df['lane_Two_lastPoint'] = lastPointList
+
+	firstPointList = []
+	midPointList = []
+	lastPointList = []
+	for i in df['lane3_points']:
+		foundlist = re.findall(r'\(\d{3},\s\d{3}\)', str(i))
+
+		if foundlist == []:
+			firstPointList.append(None)
+			midPointList.append(None)
+			lastPointList.append(None)
+		else:
+			firstPointList.append(foundlist[0].strip(r'()'))
+			midPointList.append(foundlist[int(len(foundlist) / 2)].strip(r"()"))
+			lastPointList.append(foundlist[-1].strip(r"()"))
+
+	df['lane_Three_firstPoint'] = firstPointList
+	df['lane_Three_midPoint'] = midPointList
+	df['lane_Three_lastPoint'] = lastPointList
+	df = df.drop(df[(df['car_curv'] > 10000)].index)
+	df = df.drop(["lane1_detected",
+				  "lane2_detected",
+				  "lane3_detected",
+				  "lane4_detected",
+				  "lane1_points",
+				  "lane2_points",
+				  "lane3_points",
+				  "lane4_points"], axis=1)
+	df = df.drop(df[(df['car_curv'] > 10000)].index)
+	df = df.reset_index()
+	df.to_csv('case2-vid1.csv')

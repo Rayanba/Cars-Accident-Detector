@@ -6,6 +6,7 @@ opencv-python
 torch
 tqdm
 tensorboard
+torchvision
 addict
 pathspec
 imagesize
